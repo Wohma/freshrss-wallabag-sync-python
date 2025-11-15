@@ -1,0 +1,14 @@
+{
+  "freshrss": {
+    "url": "https://foo.bar/freshrss/p/api/fever.php",
+    "username": "your_freshrss_username",
+    "api_password": "your_fever_api_password"
+  },
+  "wallabag": {
+    "url": "https://foo.bar/wallabag",
+    "client_id": "paste_your_client_id_here",
+    "client_secret": "paste_your_client_secret_here",
+    "username": "your_wallabag_username",
+    "password": "your_wallabag_password"
+  }
+}
