@@ -112,32 +112,45 @@ def get_freshrss_starred_items() -> List[int]:
         return []
 
 def get_freshrss_item_details(item_ids: List[int]) -> List[dict]:
-    """Fetch full details for specific items from FreshRSS"""
+    """Fetch full details for specific items from FreshRSS
+    
+    Batched into requests by 50 items because of Fever API limits.
+    """
     if not item_ids:
         return []
-
-    try:
-        # Fever API accepts comma-separated IDs
-        ids_string = ",".join(str(id) for id in item_ids)
- 
-        response = requests.post(
-            FRESHRSS_URL,
-            data={
-                "api_key": FEVER_API_KEY,
-                "api": "",
-                "items": "",
-                "with_ids": ids_string
-            },
-            timeout=30
-        )
-        response.raise_for_status()
-        data = response.json()
-
-        return data.get("items", [])
-
-    except Exception as e:
-        logging.error(f"Error fetching item details from FreshRSS: {e}")
-        return []
+    
+    all_items = []
+    batch_size = 50
+    
+    # Split item_ids into batches of 50 - limitation of Fever API
+    for i in range(0, len(item_ids), batch_size):
+        batch = item_ids[i:i + batch_size]
+        
+        try:
+            # Fever API accepts comma-separated IDs
+            ids_string = ",".join(str(id) for id in batch)
+            
+            response = requests.post(
+                FRESHRSS_URL,
+                data={
+                    "api_key": FEVER_API_KEY,
+                    "api": "",
+                    "items": "",
+                    "with_ids": ids_string
+                },
+                timeout=30
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            batch_items = data.get("items", [])
+            all_items.extend(batch_items)
+            
+        except Exception as e:
+            logging.error(f"Error fetching item details from FreshRSS: {e}")
+            continue
+    
+    return all_items
 
 def get_wallabag_token() -> str:
     """Obtain OAuth2 access token from Wallabag"""
