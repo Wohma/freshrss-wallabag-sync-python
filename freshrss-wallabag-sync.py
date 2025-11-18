@@ -16,6 +16,7 @@ from typing import List
 SCRIPT_DIR = Path(__file__).parent
 CONFIG_FILE = SCRIPT_DIR / "config.json"
 
+
 def load_config():
     """Load configuration from config.json file"""
     if not CONFIG_FILE.exists():
@@ -27,44 +28,30 @@ def load_config():
     with open(CONFIG_FILE, "r") as f:
         return json.load(f)
 
+
 config = load_config()
 
-# Config values from the config feel - you should probably keep as is
-FRESHRSS_URL = config["freshrss"]["url"]
-FRESHRSS_USERNAME = config["freshrss"]["username"]
-FRESHRSS_API_PASSWORD = config["freshrss"]["api_password"]
-WALLABAG_URL = config["wallabag"]["url"]
-WALLABAG_CLIENT_ID = config["wallabag"]["client_id"]
-WALLABAG_CLIENT_SECRET = config["wallabag"]["client_secret"]
-WALLABAG_USERNAME = config["wallabag"]["username"]
-WALLABAG_PASSWORD = config["wallabag"]["password"]
-FEVER_API_KEY = hashlib.md5(f"{FRESHRSS_USERNAME}:{FRESHRSS_API_PASSWORD}".encode()).hexdigest()
-
+FEVER_API_KEY = hashlib.md5(
+    f"{config['freshrss']['username']}:{config['freshrss']['api_password']}".encode()
+).hexdigest()
 TRACKING_FILE = SCRIPT_DIR / "synced_articles.json"
 LOG_FILE = SCRIPT_DIR / "sync.log"
-
-# Logging options - by default allows maximum of 5 log files, 1MB of maximum size each
-MAX_LOG_FILE_SIZE = 1024 * 1024 # Maximum log file size in bytes
-BACKUP_COUNT = 5 # Number of backup files (log.txt.1, log.txt.2) to keep
-
-# Wallabar API options - feel free to customize
-WALLABAR_API_REQUEST_COOLDOWN = 1 # Number of seconds to wait between each request
-DEFAULT_TAGS = "freshrss-sync" # Comma-separated list of tags
 
 # Logging handlers setup
 logging.basicConfig(
     level=logging.INFO,
-    format='[%(asctime)s] %(levelname)s: %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
+    format="[%(asctime)s] %(levelname)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
-         RotatingFileHandler(
+        RotatingFileHandler(
             LOG_FILE,
-            maxBytes=MAX_LOG_FILE_SIZE,
-            backupCount=BACKUP_COUNT
+            maxBytes=config["script"]["max_log_filesize"],
+            backupCount=config["script"]["backup_count"],
         ),
-        logging.StreamHandler()
-    ]
+        logging.StreamHandler(),
+    ],
 )
+
 
 def load_synced_articles() -> List[int]:
     """Load list of already synced article IDs"""
@@ -74,22 +61,20 @@ def load_synced_articles() -> List[int]:
             return [int(item_id) for item_id in data]
     return []
 
+
 def save_synced_articles(article_ids: List[int]) -> None:
     """Save list of synced article IDs"""
     with open(TRACKING_FILE, "w") as f:
         json.dump([int(item_id) for item_id in article_ids], f, indent=2)
 
+
 def get_freshrss_starred_items() -> List[int]:
     """Fetch starred item IDs from FreshRSS Fever API"""
     try:
         response = requests.post(
-            FRESHRSS_URL,
-            data={
-                "api_key": FEVER_API_KEY,
-                "api": "",
-                "saved_item_ids": ""
-            },
-            timeout=30
+            config["freshrss"]["url"],
+            data={"api_key": FEVER_API_KEY, "api": "", "saved_item_ids": ""},
+            timeout=30,
         )
         response.raise_for_status()
         data = response.json()
@@ -111,60 +96,62 @@ def get_freshrss_starred_items() -> List[int]:
         logging.error(f"Error fetching starred items from FreshRSS: {e}")
         return []
 
+
 def get_freshrss_item_details(item_ids: List[int]) -> List[dict]:
     """Fetch full details for specific items from FreshRSS
-    
+
     Batched into requests by 50 items because of Fever API limits.
     """
     if not item_ids:
         return []
-    
+
     all_items = []
     batch_size = 50
-    
+
     # Split item_ids into batches of 50 - limitation of Fever API
     for i in range(0, len(item_ids), batch_size):
-        batch = item_ids[i:i + batch_size]
-        
+        batch = item_ids[i : i + batch_size]
+
         try:
             # Fever API accepts comma-separated IDs
             ids_string = ",".join(str(id) for id in batch)
-            
+
             response = requests.post(
-                FRESHRSS_URL,
+                config["freshrss"]["url"],
                 data={
                     "api_key": FEVER_API_KEY,
                     "api": "",
                     "items": "",
-                    "with_ids": ids_string
+                    "with_ids": ids_string,
                 },
-                timeout=30
+                timeout=30,
             )
             response.raise_for_status()
             data = response.json()
-            
+
             batch_items = data.get("items", [])
             all_items.extend(batch_items)
-            
+
         except Exception as e:
             logging.error(f"Error fetching item details from FreshRSS: {e}")
             continue
-    
+
     return all_items
+
 
 def get_wallabag_token() -> str:
     """Obtain OAuth2 access token from Wallabag"""
     try:
         response = requests.post(
-            f"{WALLABAG_URL}/oauth/v2/token",
+            f"{config['wallabag']['url']}/oauth/v2/token",
             data={
                 "grant_type": "password",
-                "client_id": WALLABAG_CLIENT_ID,
-                "client_secret": WALLABAG_CLIENT_SECRET,
-                "username": WALLABAG_USERNAME,
-                "password": WALLABAG_PASSWORD
+                "client_id": config["wallabag"]["client_id"],
+                "client_secret": config["wallabag"]["client_secret"],
+                "username": config["wallabag"]["username"],
+                "password": config["wallabag"]["password"],
             },
-            timeout=30
+            timeout=30,
         )
         response.raise_for_status()
         token_data = response.json()
@@ -174,38 +161,44 @@ def get_wallabag_token() -> str:
         logging.error(f"Error obtaining Wallabag token: {e}")
         raise
 
-def add_to_wallabag(article: dict, access_token:str) -> bool:
+
+def add_to_wallabag(article: dict, access_token: str) -> bool:
     """Add article to Wallabag"""
     try:
         headers = {
             "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         payload = {
             "url": article["url"],
             "title": article.get("title", "Untitled"),
             "starred": 1,
-            "tags": DEFAULT_TAGS 
+            "tags": config["wallabag"]["default_tags"],
         }
 
         response = requests.post(
-            f"{WALLABAG_URL}/api/entries.json",
+            f"{config['wallabag']['url']}/api/entries.json",
             headers=headers,
             json=payload,
-            timeout=30
+            timeout=30,
         )
 
         if response.status_code in [200, 201]:
-            logging.info(f"✓ Added to Wallabag: {article.get('title', 'Untitled')[:60]}")
+            logging.info(
+                f"✓ Added to Wallabag: {article.get('title', 'Untitled')[:60]}"
+            )
             return True
         else:
-            logging.error(f"✗ Failed to add article (HTTP {response.status_code}): {article.get('title', 'Untitled')[:60]}")
+            logging.error(
+                f"✗ Failed to add article (HTTP {response.status_code}): {article.get('title', 'Untitled')[:60]}"
+            )
             return False
 
     except Exception as e:
         logging.error(f"✗ Error adding to Wallabag: {e}")
         return False
+
 
 def main():
     logging.info("=" * 60)
@@ -243,13 +236,16 @@ def main():
         if add_to_wallabag(article, access_token):
             success_count += 1
             newly_synced_ids.append(article_id)
-            time.sleep(WALLABAR_API_REQUEST_COOLDOWN)
+            time.sleep(config["wallabag"]["request_cooldown"])
 
     synced_ids.extend(newly_synced_ids)
     save_synced_articles(synced_ids)
 
-    logging.info(f"Sync complete: {success_count}/{len(articles)} articles added to Wallabag")
+    logging.info(
+        f"Sync complete: {success_count}/{len(articles)} articles added to Wallabag"
+    )
     logging.info(f"Total tracked articles: {len(synced_ids)}")
+
 
 if __name__ == "__main__":
     try:
@@ -257,4 +253,3 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"FATAL ERROR: {e}")
         raise
-

@@ -1,4 +1,9 @@
 {
+  "script": {
+    "max_log_filesize": 1048576,
+    "backup_count": 5,
+    "verbose": true
+  },
   "freshrss": {
     "url": "https://foo.bar/freshrss/p/api/fever.php",
     "username": "your_freshrss_username",
@@ -9,6 +14,8 @@
     "client_id": "paste_your_client_id_here",
     "client_secret": "paste_your_client_secret_here",
     "username": "your_wallabag_username",
-    "password": "your_wallabag_password"
+    "password": "your_wallabag_password",
+    "request_cooldown": 1,
+    "default_tags": "freshrss-sync"
   }
 }
