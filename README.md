@@ -26,7 +26,8 @@ Test whether the script executes without any issues in your environment. If that
 ## Limitations
 - This script is designed to be a super lightweight, low complexity solution. It is under 300 lines of code, so easily understandable and modifiable by anyone with intermediate Python knowledge.
 - Synced articles (their IDs) are stored in a simple JSON file. This is not infinitely scalable, but will be good enough for the first few thousands of articles you sync.
+- Since the already-synced cache is local, it is recommended to run this script only on one machine. Multiple instances may cause issues - I have frankly not tested these scenarios.
 
 ## Notes
-- Wallabag seems to have duplicate protection - if you wipe your synced_articles.json and re-run the sync, the script will attempt to add them to Wallabag again, but no duplicate entries will be created in Wallabag. The existing entries also retain their status.
+- Wallabag seems to have duplicate protection - if you wipe your synced_articles.json and re-run the sync, the script will attempt to add them to Wallabag again, but no duplicate entries will be created in Wallabag. The existing entries also retain their status. 
 
